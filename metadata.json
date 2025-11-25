@@ -1,0 +1,7 @@
+{
+  "name": "SMC Spa Voice Support",
+  "description": "Asistente virtual de voz para soporte técnico de Sistemas Modulares de Computación Spa using Gemini Live API.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
