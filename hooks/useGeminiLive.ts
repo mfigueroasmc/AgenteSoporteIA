@@ -21,7 +21,7 @@ const updateCaseDetailsTool: FunctionDeclaration = {
 
 const proposeSolutionsTool: FunctionDeclaration = {
   name: 'proposeSolutions',
-  description: 'Display a list of proposed technical solutions to the user on the screen.',
+  description: 'Display a list of proposed technical solutions to the user on the screen. MUST be called before creating a ticket.',
   parameters: {
     type: Type.OBJECT,
     properties: {
@@ -47,25 +47,62 @@ const createTicketTool: FunctionDeclaration = {
   }
 };
 
+const sendEmailTool: FunctionDeclaration = {
+  name: 'sendEmail',
+  description: 'Trigger the action to send the ticket details and solutions to the user email.',
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      confirmed: { type: Type.BOOLEAN, description: 'True if the user explicitly confirmed they want the email.' }
+    },
+    required: ['confirmed']
+  }
+};
+
 const getSystemInstruction = (email: string) => `
 ROL: Eres el asistente virtual de voz de Sistemas Modulares de Computación Spa (SMC Spa).
 TONO: Profesional, claro, sin emoticones.
 CONTEXTO:
-- Correo del usuario registrado: ${email}
+- Correo del usuario: ${email}
+- Remitente del sistema: soporte@smc.cl
 
-FLUJO OBLIGATORIO:
-1. SALUDO: Inicia inmediatamente con: "Hola, le habla el asistente virtual de Sistemas Modulares de Computación Spa. ¿En qué puedo ayudarle hoy?".
-2. MUNICIPALIDAD: Pregunta "¿Para poder ayudarle, ¿podría indicarme el nombre de su Municipalidad?". ESPERA RESPUESTA. Llama a 'updateCaseDetails' con la municipalidad.
-3. SISTEMA: Pregunta "Gracias. ¿Qué sistema de SMC está utilizando? Por ejemplo: Contabilidad, Adquisiciones, Inventario, etc.". ESPERA RESPUESTA. Llama a 'updateCaseDetails' con el sistema.
-4. ERROR: Pregunta "Perfecto. Ahora indíqueme por favor el error o requerimiento que necesita resolver.". ESPERA RESPUESTA. Llama a 'updateCaseDetails' con el problema.
-5. SUGERENCIAS: Analiza el problema. Genera 2-4 sugerencias técnicas inteligentes. Llama a 'proposeSolutions'. Explica las soluciones verbalmente.
-6. TICKET: Llama a 'createTicket' con el estado (ej. "Pendiente"). Lee el código de ticket generado (la herramienta te lo devolverá).
-7. CIERRE: Pregunta "¿Desea recibir una copia del ticket en su correo electrónico ${email}?".
+FLUJO OBLIGATORIO Y SECUENCIAL:
+Tu objetivo es recolectar datos, mostrar soluciones EN PANTALLA y generar un ticket EN PANTALLA.
 
-REGLAS:
-- NO avances de paso sin la respuesta del usuario.
-- Si falta información, pregúntala antes de avanzar.
-- Siempre usa las tools para mantener la pantalla actualizada.
+1. SALUDO INICIAL: "Hola, le habla el asistente virtual de Sistemas Modulares de Computación Spa. ¿En qué puedo ayudarle hoy?"
+
+2. OBTENER MUNICIPALIDAD (PRIORIDAD ALTA):
+   - Inmediatamente después del saludo, interrumpe amablemente si es necesario y pregunta: "Para poder ayudarle, por favor indíqueme primero el nombre de su Municipalidad".
+   - Espera la respuesta. EJECUTA 'updateCaseDetails' con la municipalidad.
+
+3. OBTENER SISTEMA:
+   - Solo cuando tengas la Municipalidad, pregunta: "¿Qué sistema de SMC está utilizando? (Ej: Contabilidad, Inventario, etc.)".
+   - Espera la respuesta. EJECUTA 'updateCaseDetails' con el sistema.
+
+4. OBTENER ERROR:
+   - Solo cuando tengas Municipalidad y Sistema, pregunta: "Perfecto. Ahora indíqueme por favor el error o requerimiento".
+   - Espera la respuesta. EJECUTA 'updateCaseDetails' con el problema.
+
+5. SUGERIR SOLUCIONES (OBLIGATORIO):
+   - Analiza el problema descrito.
+   - Genera 2 a 4 soluciones técnicas breves.
+   - **IMPORTANTE:** DEBES EJECUTAR la tool 'proposeSolutions' para que el usuario las vea en su pantalla.
+   - Lee las soluciones al usuario verbalmente.
+
+6. GENERAR TICKET (OBLIGATORIO):
+   - Una vez propuestas las soluciones, EJECUTA la tool 'createTicket' con el estado del caso.
+   - El sistema generará un código (Formato RE + 6 dígitos).
+   - LEE el código generado al usuario: "Su ticket ha sido generado con el código [código]".
+
+7. CIERRE Y CORREO:
+   - Pregunta: "¿Desea recibir una copia del ticket y las soluciones en su correo ${email}?".
+   - Si responde SÍ: Ejecuta 'sendEmail'. Confirma: "Enviando correo desde soporte@smc.cl".
+   - Si responde NO: Despídete cordialmente.
+
+REGLAS DE ORO:
+- NO TE SALTES PASOS.
+- DEBES USAR LAS TOOLS para que la información aparezca visualmente en la aplicación. Si no usas la tool 'proposeSolutions', el usuario no verá las soluciones.
+- Si el usuario da información desordenada, ordénala y llama a las tools correspondientes.
 `;
 
 interface UseGeminiLiveReturn {
@@ -145,7 +182,7 @@ export const useGeminiLive = (): UseGeminiLiveReturn => {
         config: {
           responseModalities: [Modality.AUDIO],
           systemInstruction: getSystemInstruction(email),
-          tools: [{ functionDeclarations: [updateCaseDetailsTool, proposeSolutionsTool, createTicketTool] }],
+          tools: [{ functionDeclarations: [updateCaseDetailsTool, proposeSolutionsTool, createTicketTool, sendEmailTool] }],
         },
       };
 
@@ -240,16 +277,10 @@ export const useGeminiLive = (): UseGeminiLiveReturn => {
                 } 
                 else if (fc.name === 'createTicket') {
                   const args = fc.args as any;
-                  const now = new Date();
                   
-                  // Format: SMC-AAAA-MMDD-HHMM-XXX
-                  const year = now.getFullYear();
-                  const month = String(now.getMonth() + 1).padStart(2, '0');
-                  const day = String(now.getDate()).padStart(2, '0');
-                  const hours = String(now.getHours()).padStart(2, '0');
-                  const minutes = String(now.getMinutes()).padStart(2, '0');
-                  const randomCode = Math.floor(Math.random() * 900) + 100;
-                  const ticketCode = `SMC-${year}-${month}${day}-${hours}${minutes}-${randomCode}`;
+                  // Generate RE + 6 digit number
+                  const random6Digits = Math.floor(100000 + Math.random() * 900000);
+                  const ticketCode = `RE${random6Digits}`;
 
                   setCaseData(prev => ({
                     ...prev,
@@ -259,6 +290,18 @@ export const useGeminiLive = (): UseGeminiLiveReturn => {
                   
                   // Return the code so the model can read it
                   result = { ticketCode: ticketCode }; 
+                }
+                else if (fc.name === 'sendEmail') {
+                  // Simulate email sending logic
+                  setCaseData(prev => ({ ...prev, emailStatus: 'sending' }));
+                  
+                  // Mock sending process
+                  setTimeout(() => {
+                    console.log(`[SIMULATION] Email sent to ${userEmailRef.current} from soporte@smc.cl with solutions.`);
+                    setCaseData(prev => ({ ...prev, emailStatus: 'sent' }));
+                  }, 2000);
+
+                  result = { result: `Email sending initiated to ${userEmailRef.current} from soporte@smc.cl` };
                 }
 
                 functionResponses.push({

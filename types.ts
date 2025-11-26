@@ -1,3 +1,4 @@
+
 export interface TicketData {
   email: string;
   municipality: string;
@@ -16,6 +17,7 @@ export interface CaseData {
   solutions?: string[];
   status?: string;
   ticketCode?: string;
+  emailStatus?: 'idle' | 'sending' | 'sent' | 'error';
 }
 
 export interface SolutionSet {

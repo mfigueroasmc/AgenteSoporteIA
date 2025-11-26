@@ -3,6 +3,7 @@ import { useGeminiLive } from './hooks/useGeminiLive';
 import Visualizer from './components/Visualizer';
 import SolutionsCard from './components/SolutionsCard';
 import SidePanel from './components/SidePanel';
+import TicketCard from './components/TicketCard';
 
 const App: React.FC = () => {
   const { connectionState, connect, disconnect, caseData, volume } = useGeminiLive();
@@ -116,57 +117,85 @@ const App: React.FC = () => {
         {/* Left Column: Visualizer & Active Interaction */}
         <div className="flex-1 flex flex-col bg-white rounded-2xl shadow-sm border border-gray-200 p-6 relative overflow-y-auto">
           
-          <div className="flex-grow flex flex-col items-center justify-center min-h-[300px]">
-             {/* Status Badge */}
-             <div className={`mb-8 px-4 py-1.5 rounded-full text-xs font-semibold tracking-wide uppercase transition-colors ${
-               connectionState === 'connected' ? 'bg-blue-50 text-blue-600' :
-               connectionState === 'connecting' ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-600'
-             }`}>
-               {connectionState === 'connected' ? 'Escuchando' : 
-                connectionState === 'connecting' ? 'Conectando...' : 'Desconectado'}
-             </div>
-
-             {/* Visualizer */}
-             <div className="mb-12 transform scale-150">
-                <Visualizer isActive={isActive} volume={volume} />
-             </div>
-
-             {/* Dynamic Suggestions Overlay */}
-             {caseData.solutions && caseData.solutions.length > 0 && (
-               <div className="w-full max-w-lg">
-                 <SolutionsCard solutions={caseData.solutions} />
+          {caseData.ticketCode ? (
+            /* Final Ticket View - Shows Solutions and Code prominently */
+            <div className="flex-grow flex items-center justify-center h-full">
+              <div className="w-full max-w-2xl">
+                 <TicketCard ticket={{
+                   email: email,
+                   municipality: caseData.municipality || 'No especificada',
+                   system: caseData.system || 'No especificado',
+                   problem: caseData.problem || 'No detallado',
+                   solutions: caseData.solutions || [],
+                   status: caseData.status || 'Emitido',
+                   ticketCode: caseData.ticketCode,
+                   createdAt: new Date().toLocaleDateString('es-CL') + ' ' + new Date().toLocaleTimeString('es-CL', {hour: '2-digit', minute:'2-digit'})
+                 }} />
+                 <div className="mt-8 text-center">
+                    <button
+                      onClick={disconnect}
+                      className="px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-full transition-colors"
+                    >
+                      Cerrar sesión
+                    </button>
+                 </div>
+              </div>
+            </div>
+          ) : (
+            /* Active Conversation View */
+            <div className="flex-grow flex flex-col items-center justify-center min-h-[300px]">
+               {/* Status Badge */}
+               <div className={`mb-8 px-4 py-1.5 rounded-full text-xs font-semibold tracking-wide uppercase transition-colors ${
+                 connectionState === 'connected' ? 'bg-blue-50 text-blue-600' :
+                 connectionState === 'connecting' ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-600'
+               }`}>
+                 {connectionState === 'connected' ? 'Escuchando' : 
+                  connectionState === 'connecting' ? 'Conectando...' : 'Desconectado'}
                </div>
-             )}
-          </div>
 
-          {/* Controls */}
-          <div className="mt-auto flex justify-center pt-6 border-t border-gray-100">
-             {connectionState === 'connected' ? (
-                <button
-                  onClick={disconnect}
-                  className="flex items-center px-6 py-3 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-full transition-colors font-medium shadow-sm"
-                >
-                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                  Finalizar Llamada
-                </button>
-             ) : (
-                <button
-                  onClick={() => connect(email)}
-                  className="flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-md transition-colors font-medium"
-                >
-                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                  Reconectar
-                </button>
-             )}
-          </div>
+               {/* Visualizer */}
+               <div className="mb-12 transform scale-150">
+                  <Visualizer isActive={isActive} volume={volume} />
+               </div>
+
+               {/* Dynamic Suggestions Overlay (Intermediate step before Ticket) */}
+               {caseData.solutions && caseData.solutions.length > 0 && (
+                 <div className="w-full max-w-lg">
+                   <SolutionsCard solutions={caseData.solutions} />
+                 </div>
+               )}
+               
+               {/* Controls */}
+                <div className="mt-12 flex justify-center">
+                   {connectionState === 'connected' ? (
+                      <button
+                        onClick={disconnect}
+                        className="flex items-center px-6 py-3 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-full transition-colors font-medium shadow-sm"
+                      >
+                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                        Finalizar Llamada
+                      </button>
+                   ) : (
+                      <button
+                        onClick={() => connect(email)}
+                        className="flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-md transition-colors font-medium"
+                      >
+                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Reconectar
+                      </button>
+                   )}
+                </div>
+            </div>
+          )}
+
         </div>
 
         {/* Right Column: Persistent Side Panel Summary */}
-        <div className="w-full md:w-96 flex-shrink-0 h-full">
+        <div className="w-full md:w-96 flex-shrink-0 h-full hidden md:block">
            <SidePanel email={email} caseData={caseData} />
         </div>
 
